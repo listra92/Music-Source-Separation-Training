@@ -22,7 +22,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
-def run_folder(model, args, config, device, verbose=False):
+def run_folder(model, args, config, device, ckpt_name, verbose=False):
     start_time = time.time()
     model.eval()
     all_mixtures_path = glob.glob(args.input_folder + '/*.*')
@@ -106,11 +106,11 @@ def run_folder(model, args, config, device, verbose=False):
                     estimates = estimates * std + mean
             file_name, _ = os.path.splitext(os.path.basename(path))
             if args.flac_file:
-                output_file = os.path.join(args.store_dir, f"{file_name}_{instr}.flac")
+                output_file = os.path.join(args.store_dir, f"\ufa6c{file_name}_{ckpt_name}_{instr}.flac")
                 subtype = 'PCM_16' if args.pcm_type == 'PCM_16' else 'PCM_24'
                 sf.write(output_file, estimates, sr, subtype=subtype)
             else:
-                output_file = os.path.join(args.store_dir, f"{file_name}_{instr}.wav")
+                output_file = os.path.join(args.store_dir, f"\ufa6c{file_name}_{ckpt_name}_{instr}.wav")
                 sf.write(output_file, estimates, sr, subtype='FLOAT')
 
     time.sleep(1)
@@ -175,7 +175,8 @@ def proc_folder(args):
 
     print("Model load time: {:.2f} sec".format(time.time() - model_load_start_time))
 
-    run_folder(model, args, config, device, verbose=True)
+    ckpt_name, _ = os.path.splitext(os.path.basename(args.start_check_point))
+    run_folder(model, args, config, device, ckpt_name, verbose=True)
 
 
 if __name__ == "__main__":
