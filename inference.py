@@ -184,12 +184,8 @@ def proc_folder(args):
         ckpt_name, _ = os.path.splitext(os.path.basename(args.start_check_point))
         ckpt_name += '_'
     if args.use_modelconf:
-        if 'dim_t' in config.inference.keys():
-            ckpt_name += f"d{config.inference.dim_t}_"
-        if 'batch_size' in config.inference.keys():
-            ckpt_name += f"b{config.inference.batch_size}_"
         if 'num_overlap' in config.inference.keys():
-            ckpt_name += f"o{config.inference.num_overlap}_"
+            ckpt_name += f"o{config.inference.num_overlap:02}_"
         if 'chunk_size' in config.audio.keys():
             ckpt_name += f"c{config.audio.chunk_size//10000}w_"
     run_folder(model, args, config, device, ckpt_name, verbose=True)
