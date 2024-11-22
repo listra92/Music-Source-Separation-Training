@@ -1,7 +1,7 @@
 audio:
   chunk_size: 352800
   dim_f: 1024
-  dim_t: 256
+  dim_t: 1101
   hop_length: 441
   n_fft: 2048
   num_channels: 2
@@ -68,5 +68,5 @@ training:
 
 inference:
   batch_size: 4
-  dim_t: 256
+  dim_t: 1101
   num_overlap: 2
