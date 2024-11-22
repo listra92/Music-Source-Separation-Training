@@ -24,7 +24,6 @@ warnings.filterwarnings("ignore")
 
 
 def run_folder(model, args, config, device, verbose=False):
-    start_time = time.time()
     model.eval()
     all_mixtures_path = glob.glob(args.input_folder + '/*.*')
     all_mixtures_path.sort()
@@ -46,6 +45,7 @@ def run_folder(model, args, config, device, verbose=False):
         detailed_pbar = True
 
     for path in all_mixtures_path:
+        start_time = time.time()
         print("Starting processing track: ", path)
         if not verbose:
             all_mixtures_path.set_postfix({'track': os.path.basename(path)})
@@ -115,8 +115,8 @@ def run_folder(model, args, config, device, verbose=False):
                 output_file = os.path.join(args.store_dir, f"\ufa6c{file_name}_{ckpt_name}{instr}.wav")
                 sf.write(output_file, estimates, sr, subtype='FLOAT')
 
-    time.sleep(1)
-    print("Elapsed time: {:.2f} sec".format(time.time() - start_time))
+        print("Done processing: {:.2f} sec".format(time.time() - start_time))
+        time.sleep(1)
 
 
 def proc_folder(args):
