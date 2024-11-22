@@ -23,7 +23,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
-def run_folder(model, args, config, device, verbose=False):
+def run_folder(model, args, config, device, ckpt_name, verbose=False):
     model.eval()
     all_mixtures_path = glob.glob(args.input_folder + '/*.*')
     all_mixtures_path.sort()
