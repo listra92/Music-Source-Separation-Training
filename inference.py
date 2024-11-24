@@ -135,6 +135,8 @@ def proc_folder(args):
     parser.add_argument("--use_modelname", action = 'store_true', help="")
     parser.add_argument("--use_modelconf", action = 'store_true', help="")
     parser.add_argument("--use_tta", action='store_true', help="Flag adds test time augmentation during inference (polarity and channel inverse). While this triples the runtime, it reduces noise and slightly improves prediction quality.")
+    parser.add_argument("--num_overlap", default=0, type=int, help="num_overlap")
+    parser.add_argument("--chunk_size", default=0, type=int, help="chunk_size")
     if args is None:
         args = parser.parse_args()
     else:
@@ -157,6 +159,10 @@ def proc_folder(args):
 
     model, config = get_model_from_config(args.model_type, args.config_path)
     if args.start_check_point != '':
+        if args.num_overlap>0:
+            config.inference.num_overlap = args.num_overlap
+        if args.chunk_size>0:
+            config.audio.chunk_size = args.chunk_size
         print('Start from checkpoint: {}'.format(args.start_check_point))
         if args.model_type in ['htdemucs', 'apollo']:
             state_dict = torch.load(args.start_check_point, map_location=device, weights_only=False)
