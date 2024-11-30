@@ -75,7 +75,7 @@ def transfer_magnitude_phase(source_file, target_file, transfer_magnitude=True, 
     sf.write(output_file, modified_audio.T, target_sr, subtype)
     print(f"Modified audio saved as {output_file}")
 
-try:
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--source_file", type=str, help="source_file")
     parser.add_argument("--target_file", type=str, help="target_file")
@@ -88,5 +88,3 @@ try:
 
     # Adjust low and high cutoff frequencies if needed
     transfer_magnitude_phase(args.source_file, args.target_file, args.transfer_magnitude, args.transfer_phase, args.low_cutoff, args.high_cutoff, args.subtype)
-except Exception as e:
-    print(f"sdasda{e}")
