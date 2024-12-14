@@ -32,7 +32,7 @@ def run_folder(model, args, config, device, ckpt_name, verbose=False):
         sample_rate = config.audio['sample_rate']
     print('Total files found: {} Use sample rate: {}'.format(len(all_mixtures_path), sample_rate))
 
-    instruments = prefer_target_instrument(config)
+    instruments = prefer_target_instrument(config)[:]
 
     os.makedirs(args.store_dir, exist_ok=True)
 
