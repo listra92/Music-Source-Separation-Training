@@ -87,9 +87,6 @@ def run_folder(model, args, config, device, ckpt_name, verbose: bool = False):
 
         file_name = os.path.splitext(os.path.basename(path))[0]
 
-        output_dir = os.path.join(args.store_dir, file_name)
-        os.makedirs(output_dir, exist_ok=True)
-
         for instr in instruments:
             estimates = waveforms_orig[instr]
             if 'normalize' in config.inference:
@@ -111,7 +108,7 @@ def run_folder(model, args, config, device, ckpt_name, verbose: bool = False):
             subtype = 'PCM_16' if args.flac_file and args.pcm_type == 'PCM_16' else 'FLOAT'
 
             if args.draw_spectro > 0:
-                output_img_path = os.path.join(output_dir, f"{file_name}_{ckpt_name}{instr}.jpg")
+                output_img_path = os.path.join(args.store_dir, f"{file_name}_{ckpt_name}{instr}.jpg")
                 draw_spectrogram(estimates.T, sr, args.draw_spectro, output_img_path)
 
         print("Done processing: {:.2f} sec".format(time.time() - start_time))
