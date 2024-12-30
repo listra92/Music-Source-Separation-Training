@@ -23,7 +23,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
-def run_folder(model, args, config, device, verbose: bool = False):
+def run_folder(model, args, config, device, ckpt_name, verbose: bool = False):
     """
     Process a folder of audio files for source separation.
 
@@ -41,7 +41,6 @@ def run_folder(model, args, config, device, verbose: bool = False):
         If True, prints detailed information during processing. Default is False.
     """
 
-    start_time = time.time()
     model.eval()
 
     mixture_paths = sorted(glob.glob(os.path.join(args.input_folder, '*.*')))
@@ -61,6 +60,7 @@ def run_folder(model, args, config, device, verbose: bool = False):
         detailed_pbar = True
 
     for path in mixture_paths:
+        start_time = time.time()
         print(f"Processing track: {path}")
         try:
             mix, sr = librosa.load(path, sr=sample_rate, mono=False)
@@ -96,16 +96,26 @@ def run_folder(model, args, config, device, verbose: bool = False):
                 if config.inference['normalize'] is True:
                     estimates = denormalize_audio(estimates, norm_params)
 
+            file_name, _ = os.path.splitext(os.path.basename(path))
+            if args.use_prefix:
+                file_name = f"\ufa6c{file_name}"
+            if args.flac_file:
+                output_file = os.path.join(args.store_dir, f"{file_name}_{ckpt_name}{instr}.flac")
+                subtype = 'PCM_16' if args.pcm_type == 'PCM_16' else 'PCM_24'
+                sf.write(output_file, estimates.T, sr, subtype=subtype)
+            else:
+                output_file = os.path.join(args.store_dir, f"{file_name}_{ckpt_name}{instr}.wav")
+                sf.write(output_file, estimates.T, sr, subtype='FLOAT')
+            
             codec = 'flac' if getattr(args, 'flac_file', False) else 'wav'
             subtype = 'PCM_16' if args.flac_file and args.pcm_type == 'PCM_16' else 'FLOAT'
 
-            output_path = os.path.join(output_dir, f"{instr}.{codec}")
-            sf.write(output_path, estimates.T, sr, subtype=subtype)
             if args.draw_spectro > 0:
-                output_img_path = os.path.join(output_dir, f"{instr}.jpg")
+                output_img_path = os.path.join(output_dir, f"{file_name}_{ckpt_name}{instr}.jpg")
                 draw_spectrogram(estimates.T, sr, args.draw_spectro, output_img_path)
 
-    print(f"Elapsed time: {time.time() - start_time:.2f} seconds.")
+        print("Done processing: {:.2f} sec".format(time.time() - start_time))
+        time.sleep(1)
 
 
 def proc_folder(args):
@@ -122,8 +132,13 @@ def proc_folder(args):
     parser.add_argument("--force_cpu", action='store_true', help="Force the use of CPU even if CUDA is available")
     parser.add_argument("--flac_file", action='store_true', help="Output flac file instead of wav")
     parser.add_argument("--pcm_type", type=str, choices=['PCM_16', 'PCM_24'], default='PCM_24', help="PCM type for FLAC files (PCM_16 or PCM_24)")
+    parser.add_argument("--use_prefix", action = 'store_true', help="")
+    parser.add_argument("--use_modelname", action = 'store_true', help="")
+    parser.add_argument("--use_modelconf", action = 'store_true', help="")
     parser.add_argument("--use_tta", action='store_true', help="Flag adds test time augmentation during inference (polarity and channel inverse). While this triples the runtime, it reduces noise and slightly improves prediction quality.")
     parser.add_argument("--lora_checkpoint", type=str, default='', help="Initial checkpoint to LoRA weights")
+    parser.add_argument("--num_overlap", default=8, type=int, help="num_overlap")
+    parser.add_argument("--chunk_size", default=485100, type=int, help="chunk_size")
     if args is None:
         args = parser.parse_args()
     else:
@@ -146,6 +161,10 @@ def proc_folder(args):
     model, config = get_model_from_config(args.model_type, args.config_path)
 
     if args.start_check_point != '':
+        if args.num_overlap>0:
+            config.inference.num_overlap = args.num_overlap
+        if args.chunk_size>0:
+            config.audio.chunk_size = args.chunk_size
         load_start_checkpoint(args, model, type_='inference')
 
     print("Instruments: {}".format(config.training.instruments))
@@ -158,7 +177,16 @@ def proc_folder(args):
 
     print("Model load time: {:.2f} sec".format(time.time() - model_load_start_time))
 
-    run_folder(model, args, config, device, verbose=True)
+    ckpt_name = ''
+    if args.use_modelname:
+        ckpt_name, _ = os.path.splitext(os.path.basename(args.start_check_point))
+        ckpt_name += '_'
+    if args.use_modelconf:
+        if 'num_overlap' in config.inference.keys():
+            ckpt_name += f"o{config.inference.num_overlap:02}_"
+        if 'chunk_size' in config.audio.keys():
+            ckpt_name += f"c{config.audio.chunk_size//10000}w_"
+    run_folder(model, args, config, device, ckpt_name, verbose=True)
 
 
 if __name__ == "__main__":
