@@ -26,7 +26,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
-def run_folder(model, args, config, device, verbose: bool = False):
+def run_folder(model, args, config, device, ckpt_name, verbose: bool = False):
     """
     Process a folder of audio files for source separation.
 
@@ -44,7 +44,6 @@ def run_folder(model, args, config, device, verbose: bool = False):
         If True, prints detailed information during processing. Default is False.
     """
 
-    start_time = time.time()
     model.eval()
 
     mixture_paths = sorted(glob.glob(os.path.join(args.input_folder, '*.*')))
@@ -64,6 +63,7 @@ def run_folder(model, args, config, device, verbose: bool = False):
         detailed_pbar = True
 
     for path in mixture_paths:
+        start_time = time.time()
         print(f"Processing track: {path}")
         try:
             mix, sr = librosa.load(path, sr=sample_rate, mono=False)
@@ -85,21 +85,46 @@ def run_folder(model, args, config, device, verbose: bool = False):
             if config.inference['normalize'] is True:
                 mix, norm_params = normalize_audio(mix)
 
+        instruments = prefer_target_instrument(config)[:]
+
         waveforms_orig = demix(config, model, mix, device, model_type=args.model_type, pbar=detailed_pbar)
 
         if args.use_tta:
             waveforms_orig = apply_tta(config, model, mix, waveforms_orig, device, args.model_type)
 
+        if args.demud_phaseremix_inst:
+            print(f"Demudding track (phase remix - instrumental): {path}")
+            instr = 'vocals' if 'vocals' in instruments else instruments[0]
+            instruments.append('instrumental_phaseremix')
+            if 'instrumental' not in instruments and 'Instrumental' not in instruments:
+                mix_modified = mix_orig - 2*waveforms_orig[instr]
+                mix_modified_ = mix_modified.copy()
+
+                waveforms_modified = demix(config, model, mix_modified, device, model_type=args.model_type, pbar=detailed_pbar)
+                if args.use_tta:
+                    waveforms_modified = apply_tta(config, model, mix_modified, waveforms_modified, device, args.model_type)
+
+                waveforms_orig['instrumental_phaseremix'] = mix_orig + waveforms_modified[instr]
+            else:
+                mix_modified = 2*waveforms_orig[instr] - mix_orig
+                mix_modified_ = mix_modified.copy()
+
+                waveforms_modified = demix(config, model, mix_modified, device, model_type=args.model_type, pbar=detailed_pbar)
+                if args.use_tta:
+                    waveforms_modified = apply_tta(config, model, mix_modified, waveforms_orig, device, args.model_type)
+
+                waveforms_orig['instrumental_phaseremix'] = mix_orig + mix_modified_ - waveforms_modified[instr]
+        
         if args.extract_instrumental:
             instr = 'vocals' if 'vocals' in instruments else instruments[0]
-            waveforms_orig['instrumental'] = mix_orig - waveforms_orig[instr]
-            if 'instrumental' not in instruments:
+            if 'instrumental' not in instruments and 'Instrumental' not in instruments:
                 instruments.append('instrumental')
+                waveforms_orig['instrumental'] = mix_orig - waveforms_orig[instr]
+            else:
+                instruments.append('other')
+                waveforms_orig['other'] = mix_orig - waveforms_orig[instr]
 
         file_name = os.path.splitext(os.path.basename(path))[0]
-
-        output_dir = os.path.join(args.store_dir, file_name)
-        os.makedirs(output_dir, exist_ok=True)
 
         for instr in instruments:
             estimates = waveforms_orig[instr]
@@ -107,16 +132,23 @@ def run_folder(model, args, config, device, verbose: bool = False):
                 if config.inference['normalize'] is True:
                     estimates = denormalize_audio(estimates, norm_params)
 
-            codec = 'flac' if getattr(args, 'flac_file', False) else 'wav'
-            subtype = 'PCM_16' if args.flac_file and args.pcm_type == 'PCM_16' else 'FLOAT'
+            ile_name, _ = os.path.splitext(os.path.basename(path))
+            if args.use_prefix:
+                file_name = f"\ufa6c{file_name}"
+            if args.flac_file:
+                output_file = os.path.join(args.store_dir, f"{file_name}_{ckpt_name}{instr}.flac")
+                subtype = 'PCM_16' if args.pcm_type == 'PCM_16' else 'PCM_24'
+                sf.write(output_file, estimates.T, sr, subtype=subtype)
+            else:
+                output_file = os.path.join(args.store_dir, f"{file_name}_{ckpt_name}{instr}.wav")
+                sf.write(output_file, estimates.T, sr, subtype='FLOAT')
 
-            output_path = os.path.join(output_dir, f"{instr}.{codec}")
-            sf.write(output_path, estimates.T, sr, subtype=subtype)
             if args.draw_spectro > 0:
                 output_img_path = os.path.join(output_dir, f"{instr}.jpg")
                 draw_spectrogram(estimates.T, sr, args.draw_spectro, output_img_path)
 
-    print(f"Elapsed time: {time.time() - start_time:.2f} seconds.")
+        print("Done processing: {:.2f} sec".format(time.time() - start_time))
+        time.sleep(1)
 
 
 def proc_folder(dict_args):
