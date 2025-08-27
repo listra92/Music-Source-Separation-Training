@@ -170,6 +170,10 @@ def proc_folder(dict_args):
     model, config = get_model_from_config(args.model_type, args.config_path)
 
     if args.start_check_point != '':
+        if args.num_overlap>0:
+            config.inference.num_overlap = args.num_overlap
+        if args.chunk_size>0:
+            config.audio.chunk_size = args.chunk_size
         load_start_checkpoint(args, model, type_='inference')
 
     print("Instruments: {}".format(config.training.instruments))
@@ -182,7 +186,16 @@ def proc_folder(dict_args):
 
     print("Model load time: {:.2f} sec".format(time.time() - model_load_start_time))
 
-    run_folder(model, args, config, device, verbose=True)
+    ckpt_name = ''
+    if args.use_modelname:
+        ckpt_name, _ = os.path.splitext(os.path.basename(args.start_check_point))
+        ckpt_name += '_'
+    if args.use_modelconf:
+        if 'num_overlap' in config.inference.keys():
+            ckpt_name += f"o{config.inference.num_overlap:02}_"
+        if 'chunk_size' in config.audio.keys():
+            ckpt_name += f"c{config.audio.chunk_size//10000}w_"
+    run_folder(model, args, config, device, ckpt_name, verbose=True)
 
 
 if __name__ == "__main__":
