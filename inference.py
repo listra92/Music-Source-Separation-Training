@@ -132,7 +132,7 @@ def run_folder(model, args, config, device, ckpt_name, verbose: bool = False):
                 if config.inference['normalize'] is True:
                     estimates = denormalize_audio(estimates, norm_params)
 
-            ile_name, _ = os.path.splitext(os.path.basename(path))
+            file_name, _ = os.path.splitext(os.path.basename(path))
             if args.use_prefix:
                 file_name = f"\ufa6c{file_name}"
             if args.flac_file:
