@@ -194,6 +194,15 @@ def parse_args_inference(dict_args: Union[Dict, None]) -> argparse.Namespace:
                         help="Flag adds test time augmentation during inference (polarity and channel inverse)."
                         "While this triples the runtime, it reduces noise and slightly improves prediction quality.")
     parser.add_argument("--lora_checkpoint", type=str, default='', help="Initial checkpoint to LoRA weights")
+    #parser.add_argument("--demud_phaserot_inst", action='store_true', help="demud_phaserot_inst")
+    #parser.add_argument("--demud_phaserot_voc", action='store_true', help="demud_phaserot_voc")
+    parser.add_argument("--demud_phaseremix_inst", action='store_true', help="demud_phaseremix_inst")
+    #parser.add_argument("--demud_phaseremix_voc", action='store_true', help="demud_phaseremix_voc")
+    parser.add_argument("--use_prefix", action='store_true', help="use_prefix")
+    parser.add_argument("--use_modelname", action='store_true', help="use_modelname")
+    parser.add_argument("--use_modelconf", action='store_true', help="use_modelconf")
+    parser.add_argument("--num_overlap", default=8, type=int, help="num_overlap")
+    parser.add_argument("--chunk_size", default=485100, type=int, help="chunk_size")
 
     if dict_args is not None:
         args = parser.parse_args([])
