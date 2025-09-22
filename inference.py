@@ -177,7 +177,8 @@ def proc_folder(dict_args):
             config.inference.num_overlap = args.num_overlap
         if args.chunk_size>0:
             config.audio.chunk_size = args.chunk_size
-        load_start_checkpoint(args, model, type_='inference')
+        checkpoint = torch.load(args.start_check_point, weights_only=False, map_location='cpu')
+        load_start_checkpoint(args, model, checkpoint, type_='inference')
 
     print("Instruments: {}".format(config.training.instruments))
 
