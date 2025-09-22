@@ -178,7 +178,7 @@ def proc_folder(dict_args):
         if args.chunk_size>0:
             config.audio.chunk_size = args.chunk_size
         checkpoint = torch.load(args.start_check_point, weights_only=False, map_location='cpu')
-        load_start_checkpoint(args, model, checkpoint, type_='inference')
+        load_start_checkpoint(args, checkpoint, type_='inference')
 
     print("Instruments: {}".format(config.training.instruments))
 
