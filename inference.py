@@ -194,6 +194,7 @@ def proc_folder(dict_args):
             ckpt_name += f"o{config.inference.num_overlap:02}_"
         if 'chunk_size' in config.audio.keys():
             ckpt_name += f"c{config.audio.chunk_size//10000}w_"
+    time.sleep(0.8)
     run_folder(model, args, config, device, ckpt_name, verbose=True)
 
 
