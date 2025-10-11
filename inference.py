@@ -66,7 +66,7 @@ def run_folder(model, args, config, device, ckpt_name, verbose: bool = False):
         start_time = time.time()
         print(f"Processing track: {path}")
         try:
-            mix, sr = librosa.load(path, sr=sample_rate, mono=('stereo' in config.model and not config.model['stereo']))
+            mix, sr = librosa.load(path, sr=sample_rate, mono=('model' in config and 'stereo' in config.model and not config.model['stereo']))
         except Exception as e:
             print(f'Cannot read track: {format(path)}')
             print(f'Error message: {str(e)}')
