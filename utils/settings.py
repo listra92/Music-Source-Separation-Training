@@ -296,6 +296,9 @@ def get_model_from_config(model_type: str, config_path: str) -> Tuple[nn.Module,
     elif model_type == 'bs_roformer_experimental':
         from models.bs_roformer.bs_roformer_experimental import BSRoformer
         model = BSRoformer(**dict(config.model))
+    elif model_type == 'bs_roformer_custom':
+        from models.bs_roformer.bs_roformer_custom import BSRoformer
+        model = BSRoformer(**dict(config.model))
     elif model_type == 'swin_upernet':
         from models.upernet_swin_transformers import Swin_UperNet_Model
         model = Swin_UperNet_Model(config)
