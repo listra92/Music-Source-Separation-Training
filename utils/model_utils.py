@@ -559,7 +559,7 @@ def load_start_checkpoint(args: argparse.Namespace,
             if 'model_state_dict' in old_model:
                 # Fix for full_check_point
                 old_model = old_model['model_state_dict']
-        model.load_state_dict(old_model)
+        model.load_state_dict(old_model, strict=False)
 
     if args.lora_checkpoint:
         if should_print:
