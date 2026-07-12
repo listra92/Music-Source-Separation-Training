@@ -50,7 +50,6 @@ def run_folder(
         If True, prints detailed information during processing. Default is False.
     """
 
-    start_time = time.time()
     model.eval()
 
     # Recursively collect all files from input directory
@@ -77,6 +76,8 @@ def run_folder(
         detailed_pbar = True
 
     for path in mixture_paths:
+        start_time = time.time()
+        print(f"Processing track: {path}")
         # Get relative path from input folder
         relative_path: str = os.path.relpath(path, args.input_folder)
         # Extract directory and file name
@@ -84,7 +85,7 @@ def run_folder(
         file_name: str = os.path.splitext(os.path.basename(path))[0]
 
         try:
-            mix, sr = librosa.load(path, sr=sample_rate, mono=False)
+            mix, sr = librosa.load(path, sr=sample_rate, mono=('model' in config and 'stereo' in config.model and not config.model['stereo']))
         except Exception as e:
             print(f"Cannot read track: {format(path)}")
             print(f"Error message: {str(e)}")
@@ -105,36 +106,47 @@ def run_folder(
             if config.inference["normalize"] is True:
                 mix, norm_params = normalize_audio(mix)
 
+        instruments = prefer_target_instrument(config)[:]
+        
         # Perform source separation
-        waveforms_orig = bigshifts_wrapper(
-            config,
-            model,
-            mix,
-            device,
-            model_type=args.model_type,
-            pbar=detailed_pbar,
-            bigshifts=args.bigshifts
-        )
+        waveforms_orig = bigshifts_wrapper(config, model, mix, device, model_type=args.model_type, pbar=detailed_pbar, bigshifts=args.bigshifts)
 
         # Apply test-time augmentation if enabled
         if args.use_tta:
-            waveforms_orig = apply_tta(
-                config,
-                model,
-                mix,
-                waveforms_orig,
-                device,
-                args.model_type,
-                bigshifts=args.bigshifts,
-                pbar=detailed_pbar
-            )
+            waveforms_orig = apply_tta(config, model, mix, waveforms_orig, device, args.model_type, bigshifts=args.bigshifts, pbar=detailed_pbar)
+
+        if args.demud_phaseremix_inst:
+            print(f"Demudding track (phase remix - instrumental): {path}")
+            instr = 'vocals' if 'vocals' in instruments else instruments[0]
+            instruments.append('instrumental_phaseremix')
+            if 'instrumental' not in instruments and 'Instrumental' not in instruments:
+                mix_modified = mix_orig - 2*waveforms_orig[instr]
+                mix_modified_ = mix_modified.copy()
+
+                waveforms_modified = bigshifts_wrapper(config, model, mix_modified, device, model_type=args.model_type, pbar=detailed_pbar, bigshifts=args.bigshifts)
+                if args.use_tta:
+                    waveforms_modified = apply_tta(config, model, mix_modified, waveforms_modified, device, args.model_type, bigshifts=args.bigshifts, pbar=detailed_pbar)
+
+                waveforms_orig['instrumental_phaseremix'] = mix_orig + waveforms_modified[instr]
+            else:
+                mix_modified = 2*waveforms_orig[instr] - mix_orig
+                mix_modified_ = mix_modified.copy()
+
+                waveforms_modified = bigshifts_wrapper(config, model, mix_modified, device, model_type=args.model_type, pbar=detailed_pbar, bigshifts=args.bigshifts)
+                if args.use_tta:
+                    waveforms_modified = apply_tta(config, model, mix_modified, waveforms_orig, device, args.model_type, bigshifts=args.bigshifts, pbar=detailed_pbar)
+
+                waveforms_orig['instrumental_phaseremix'] = mix_orig + mix_modified_ - waveforms_modified[instr]
 
         # Extract instrumental track if requested
         if args.extract_instrumental:
-            instr = "vocals" if "vocals" in instruments else instruments[0]
-            waveforms_orig["instrumental"] = mix_orig - waveforms_orig[instr]
-            if "instrumental" not in instruments:
-                instruments.append("instrumental")
+            instr = 'vocals' if 'vocals' in instruments else instruments[0]
+            if 'instrumental' not in instruments and 'Instrumental' not in instruments:
+                instruments.append('instrumental')
+                waveforms_orig['instrumental'] = mix_orig - waveforms_orig[instr]
+            else:
+                instruments.append('other')
+                waveforms_orig['other'] = mix_orig - waveforms_orig[instr]
 
         for instr in instruments:
             estimates = waveforms_orig[instr]
@@ -144,41 +156,26 @@ def run_folder(
                 if config.inference["normalize"] is True:
                     estimates = denormalize_audio(estimates, norm_params)
 
+            file_name, _ = os.path.splitext(os.path.basename(path))
+            if args.use_prefix:
+                file_name = f"\ufa6c{file_name}"
+            
             peak: float = float(np.abs(estimates).max())
-            if peak <= 1.0 and args.pcm_type != 'FLOAT':
-                codec = "flac"
+            if peak < 1.0 and args.flac_file:
+                output_file = os.path.join(args.store_dir, f"{file_name}_{ckpt_name}{instr}.flac")
+                subtype = 'PCM_16' if args.pcm_type == 'PCM_16' else 'PCM_24'
+                sf.write(output_file, estimates.T, sr, subtype=subtype)
             else:
-                codec = "wav"
+                output_file = os.path.join(args.store_dir, f"{file_name}_{ckpt_name}{instr}.wav")
+                sf.write(output_file, estimates.T, sr, subtype='FLOAT')
 
-            subtype = args.pcm_type
-
-            # Generate output directory structure using relative paths
-            dirnames, fname = format_filename(
-                args.filename_template,
-                instr=instr,
-                start_time=int(start_time),
-                file_name=file_name,
-                dir_name=dir_name,
-                model_type=args.model_type,
-                model=os.path.splitext(
-                    os.path.basename(args.start_check_point)
-                )[0],
-            )
-
-            # Create output directory
-            output_dir: str = os.path.join(args.store_dir, *dirnames)
-            os.makedirs(output_dir, exist_ok=True)
-
-            output_path: str = os.path.join(output_dir, f"{fname}.{codec}")
-            sf.write(output_path, estimates.T, sr, subtype=subtype)
-
-            # Draw and save spectrogram if enabled
             if args.draw_spectro > 0:
-                output_img_path = os.path.join(output_dir, f"{fname}.jpg")
+                output_img_path = os.path.join(args.store_dir, f"{file_name}_{ckpt_name}{instr}.jpg")
                 draw_spectrogram(estimates.T, sr, args.draw_spectro, output_img_path)
                 print("Wrote file:", output_img_path)
 
-    print(f"Elapsed time: {time.time() - start_time:.2f} seconds.")
+        print("Done processing: {:.2f} sec".format(time.time() - start_time))
+        time.sleep(1)
 
 def format_filename(template, **kwargs):
     '''
@@ -212,6 +209,10 @@ def proc_folder(dict_args):
     if 'model_type' in config.training:
         args.model_type = config.training.model_type
     if args.start_check_point:
+        if args.num_overlap>0:
+            config.inference.num_overlap = args.num_overlap
+        if args.chunk_size>0:
+            config.audio.chunk_size = args.chunk_size
         checkpoint = torch.load(args.start_check_point, weights_only=False, map_location='cpu')
         load_start_checkpoint(args, model, checkpoint, type_='inference')
 
@@ -225,6 +226,16 @@ def proc_folder(dict_args):
 
     print("Model load time: {:.2f} sec".format(time.time() - model_load_start_time))
 
+    ckpt_name = ''
+    if args.use_modelname:
+        ckpt_name, _ = os.path.splitext(os.path.basename(args.start_check_point))
+        ckpt_name += '_'
+    if args.use_modelconf:
+        if 'num_overlap' in config.inference.keys():
+            ckpt_name += f"o{config.inference.num_overlap:02}_"
+        if 'chunk_size' in config.audio.keys():
+            ckpt_name += f"c{config.audio.chunk_size//10000}w_"
+    time.sleep(0.8)
     run_folder(model, args, config, device, verbose=True)
 
 
