@@ -221,7 +221,11 @@ class TFC_TDF_net(nn.Module):
 
         for block in self.decoder_blocks:
             x = block.upscale(x)
-            x = torch.cat([x, encoder_outputs.pop()], 1)
+            res = encoder_outputs.pop()
+        if x.shape[2:] != res.shape[2:]:
+            import torch.nn.functional as F
+            x = F.interpolate(x, size=res.shape[2:], mode='bilinear', align_corners=True)
+            x = torch.cat([x, res], 1)
             x = block.tfc_tdf(x)
 
         x = x.transpose(-1, -2)
@@ -232,8 +236,9 @@ class TFC_TDF_net(nn.Module):
 
         x = self.cws2cac(x)
 
-        b, c, f, t = x.shape
-        x = x.reshape(b, self.num_target_instruments, -1, f, t)
+        if self.num_target_instruments > 1:
+            b, c, f, t = x.shape
+            x = x.reshape(b, self.num_target_instruments, -1, f, t)
 
         x = self.stft.inverse(x)
 
