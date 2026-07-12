@@ -31,6 +31,7 @@ def run_folder(
     args: "argparse.Namespace",
     config: dict,
     device: "torch.device",
+    ckpt_name,
     verbose: bool = False
 ) -> None:
     """
