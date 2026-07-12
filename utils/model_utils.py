@@ -170,6 +170,14 @@ def demix(
                 if len(batch_data) >= batch_size or i >= mix.shape[1]:
                     arr = torch.stack(batch_data, dim=0)
                     x = model(arr)
+                    if x.shape[-1] != arr.shape[-1]:
+        # Jeśli wymiary się nie zgadzają, dotnij lub dopełnij x do rozmiaru arr
+                        import torch.nn.functional as F
+                        diff = arr.shape[-1] - x.shape[-1]
+                        if diff > 0:
+                            x = F.pad(x, (0, diff)) # Dopełnij zerami jeśli za krótkie
+                        else:
+                            x = x[..., :arr.shape[-1]]
 
                     if mode == "generic":
                         window = windowing_array.clone() # using clone() fixes the clicks at chunk edges when using batch_size=1
