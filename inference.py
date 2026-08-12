@@ -159,7 +159,7 @@ def run_folder(
 
             file_name, _ = os.path.splitext(os.path.basename(path))
             if args.use_prefix:
-                file_name = f"\ufa6c{file_name}"
+                file_name = f"{chr(148206)}{file_name}"
             
             peak: float = float(np.abs(estimates).max())
             if peak < 1.0 and args.flac_file:
