@@ -227,6 +227,16 @@ def parse_args_inference(dict_args: Union[Dict, None]) -> argparse.Namespace:
     parser.add_argument("--filename_template", type=str, default='{file_name}/{instr}',
                         help="Output filename template, without extension, using '/' for subdirectories. Default: '{file_name}/{instr}'")
     parser.add_argument("--lora_checkpoint_loralib", type=str, default='', help="Initial checkpoint to LoRA weights")
+    #parser.add_argument("--demud_phaserot_inst", action='store_true', help="demud_phaserot_inst")
+    #parser.add_argument("--demud_phaserot_voc", action='store_true', help="demud_phaserot_voc")
+    parser.add_argument("--demud_phaseremix_inst", action='store_true', help="demud_phaseremix_inst")
+    #parser.add_argument("--demud_phaseremix_voc", action='store_true', help="demud_phaseremix_voc")
+    parser.add_argument("--use_prefix", action='store_true', help="use_prefix")
+    parser.add_argument("--use_modelname", action='store_true', help="use_modelname")
+    parser.add_argument("--use_modelconf", action='store_true', help="use_modelconf")
+    parser.add_argument("--num_overlap", default=8, type=int, help="num_overlap")
+    parser.add_argument("--chunk_size", default=485100, type=int, help="chunk_size")
+
     if dict_args is not None:
         args = parser.parse_args([])
         args_dict = vars(args)
@@ -320,8 +330,13 @@ def get_model_from_config(model_type: str, config_path: str) -> Tuple[nn.Module,
         from models.torchseg_models import Torchseg_Net
         model = Torchseg_Net(config)
     elif model_type == 'mel_band_roformer':
-        from models.bs_roformer import MelBandRoformer
-        model = MelBandRoformer(**dict(config.model))
+        try:
+            from models.bs_roformer import MelBandRoformer
+            model = MelBandRoformer(**dict(config.model))
+        except Exception as e:
+            print("The model type might be BS Roformer instead of Mel Roformer, trying to fix it.")
+            from models.bs_roformer import BSRoformer
+            model = BSRoformer(**dict(config.model))
     elif model_type == 'mel_band_conformer':
         from models.bs_roformer import MelBandConformer
         model = MelBandConformer(**dict(config.model))
@@ -329,13 +344,21 @@ def get_model_from_config(model_type: str, config_path: str) -> Tuple[nn.Module,
         from models.bs_roformer.mel_band_roformer_experimental import MelBandRoformer
         model = MelBandRoformer(**dict(config.model))
     elif model_type == 'bs_roformer':
-        from models.bs_roformer import BSRoformer
-        model = BSRoformer(**dict(config.model))
+        try:
+            from models.bs_roformer import BSRoformer
+            model = BSRoformer(**dict(config.model))
+        except Exception as e:
+            print("The model type might be Mel Roformer instead of BS Roformer, trying to fix it.")
+            from models.bs_roformer import MelBandRoformer
+            model = MelBandRoformer(**dict(config.model))
     elif model_type == 'bs_conformer':
         from models.bs_roformer import BSConformer
         model = BSConformer(**dict(config.model))
     elif model_type == 'bs_roformer_experimental':
         from models.bs_roformer.bs_roformer_experimental import BSRoformer
+        model = BSRoformer(**dict(config.model))
+    elif model_type == 'bs_roformer_custom':
+        from models.bs_roformer.bs_roformer_custom.bs_roformer import BSRoformer
         model = BSRoformer(**dict(config.model))
     elif model_type == 'bs_mamba2':
         from models.bs_mamba2_code.bs_mamba2 import BSMamba2Model
