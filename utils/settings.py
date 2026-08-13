@@ -227,16 +227,6 @@ def parse_args_inference(dict_args: Union[Dict, None]) -> argparse.Namespace:
     parser.add_argument("--filename_template", type=str, default='{file_name}/{instr}',
                         help="Output filename template, without extension, using '/' for subdirectories. Default: '{file_name}/{instr}'")
     parser.add_argument("--lora_checkpoint_loralib", type=str, default='', help="Initial checkpoint to LoRA weights")
-    #parser.add_argument("--demud_phaserot_inst", action='store_true', help="demud_phaserot_inst")
-    #parser.add_argument("--demud_phaserot_voc", action='store_true', help="demud_phaserot_voc")
-    parser.add_argument("--demud_phaseremix_inst", action='store_true', help="demud_phaseremix_inst")
-    #parser.add_argument("--demud_phaseremix_voc", action='store_true', help="demud_phaseremix_voc")
-    parser.add_argument("--use_prefix", action='store_true', help="use_prefix")
-    parser.add_argument("--use_modelname", action='store_true', help="use_modelname")
-    parser.add_argument("--use_modelconf", action='store_true', help="use_modelconf")
-    parser.add_argument("--num_overlap", default=8, type=int, help="num_overlap")
-    parser.add_argument("--chunk_size", default=485100, type=int, help="chunk_size")
-
     if dict_args is not None:
         args = parser.parse_args([])
         args_dict = vars(args)
@@ -330,13 +320,8 @@ def get_model_from_config(model_type: str, config_path: str) -> Tuple[nn.Module,
         from models.torchseg_models import Torchseg_Net
         model = Torchseg_Net(config)
     elif model_type == 'mel_band_roformer':
-        try:
-            from models.bs_roformer import MelBandRoformer
-            model = MelBandRoformer(**dict(config.model))
-        except Exception as e:
-            print("The model type might be BS Roformer instead of Mel Roformer, trying to fix it.")
-            from models.bs_roformer import BSRoformer
-            model = BSRoformer(**dict(config.model))
+        from models.bs_roformer import MelBandRoformer
+        model = MelBandRoformer(**dict(config.model))
     elif model_type == 'mel_band_conformer':
         from models.bs_roformer import MelBandConformer
         model = MelBandConformer(**dict(config.model))
@@ -344,21 +329,13 @@ def get_model_from_config(model_type: str, config_path: str) -> Tuple[nn.Module,
         from models.bs_roformer.mel_band_roformer_experimental import MelBandRoformer
         model = MelBandRoformer(**dict(config.model))
     elif model_type == 'bs_roformer':
-        try:
-            from models.bs_roformer import BSRoformer
-            model = BSRoformer(**dict(config.model))
-        except Exception as e:
-            print("The model type might be Mel Roformer instead of BS Roformer, trying to fix it.")
-            from models.bs_roformer import MelBandRoformer
-            model = MelBandRoformer(**dict(config.model))
+        from models.bs_roformer import BSRoformer
+        model = BSRoformer(**dict(config.model))
     elif model_type == 'bs_conformer':
         from models.bs_roformer import BSConformer
         model = BSConformer(**dict(config.model))
     elif model_type == 'bs_roformer_experimental':
         from models.bs_roformer.bs_roformer_experimental import BSRoformer
-        model = BSRoformer(**dict(config.model))
-    elif model_type == 'bs_roformer_custom':
-        from models.bs_roformer.bs_roformer_custom.bs_roformer import BSRoformer
         model = BSRoformer(**dict(config.model))
     elif model_type == 'bs_mamba2':
         from models.bs_mamba2_code.bs_mamba2 import BSMamba2Model
@@ -416,18 +393,41 @@ def get_scheduler(config, optimizer):
     if scheduler_name == 'linear_scheduler':
         from transformers import get_linear_schedule_with_warmup
         num_training_steps = config.training.num_epochs * config.training.num_steps
-        num_warmup_steps = config.training.num_warmup_steps
+        num_warmup_steps = config.training.get('num_warmup_steps', 0)
         scheduler = get_linear_schedule_with_warmup(
             optimizer,
             num_warmup_steps=num_warmup_steps,
             num_training_steps=num_training_steps
         )
+    elif scheduler_name == 'cosine_scheduler':
+        num_training_steps = config.training.num_epochs * config.training.num_steps
+        num_warmup_steps = config.training.get('num_warmup_steps', 0)
+        # restart_cycle_epochs > 0 enables cosine warm restarts with that period
+        # (in epochs); the initial warmup applies only to the first cycle.
+        cycle_epochs = config.training.get('restart_cycle_epochs', 0)
+        if cycle_epochs and cycle_epochs > 0:
+            from transformers import get_cosine_with_hard_restarts_schedule_with_warmup
+            cycle_steps = cycle_epochs * config.training.num_steps
+            num_cycles = max(1, round((num_training_steps - num_warmup_steps) / cycle_steps))
+            scheduler = get_cosine_with_hard_restarts_schedule_with_warmup(
+                optimizer,
+                num_warmup_steps=num_warmup_steps,
+                num_training_steps=num_training_steps,
+                num_cycles=num_cycles
+            )
+        else:
+            from transformers import get_cosine_schedule_with_warmup
+            scheduler = get_cosine_schedule_with_warmup(
+                optimizer,
+                num_warmup_steps=num_warmup_steps,
+                num_training_steps=num_training_steps
+            )
     elif scheduler_name == 'ReduceLROnPlateau':
         from torch.optim.lr_scheduler import ReduceLROnPlateau
-        scheduler = ReduceLROnPlateau(optimizer, 'max', patience=config.training.patience,
-                                      factor=config.training.reduce_factor)
+        scheduler = ReduceLROnPlateau(optimizer, 'max', patience=config.training.get('patience', 10),
+                                      factor=config.training.get('reduce_factor', 0.5))
     else:
-        available_schedulers = ['linear_scheduler', 'ReduceLROnPlateau']
+        available_schedulers = ['linear_scheduler', 'cosine_scheduler', 'ReduceLROnPlateau']
         raise ValueError(
             f"Unknown scheduler '{scheduler_name}'. "
             f"Available options: {available_schedulers}. "
