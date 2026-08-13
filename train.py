@@ -148,7 +148,7 @@ def train_one_epoch(model: torch.nn.Module, config: ConfigDict, args: argparse.N
                 else:
                     ema_model.update_parameters(model)
 
-            if scheduler.name in ['linear_scheduler']:
+            if scheduler.name in ['linear_scheduler', 'cosine_scheduler']:
                 scheduler.step()
             optimizer.zero_grad(set_to_none=True)
         if ddp:
@@ -216,6 +216,7 @@ def compute_epoch_metrics(model: torch.nn.Module, args: argparse.Namespace, conf
 
     metric_avg = metrics_avg[args.metric_for_scheduler]
     if metric_avg > best_metric:
+        best_metric = metric_avg
 
         if args.each_metrics_in_name:
             stem_parts = []
@@ -248,7 +249,6 @@ def compute_epoch_metrics(model: torch.nn.Module, args: argparse.Namespace, conf
                 args=args,
                 scheduler=scheduler
             )
-        best_metric = metric_avg
 
     if args.save_weights_every_epoch:
         metric_string = ''
@@ -448,7 +448,7 @@ def train_model(args: Union[argparse.Namespace, None], rank=None, world_size=Non
         model_to_valid = ema_model if ema_model is not None else model
 
         if should_print:
-            save_last_weights(args, model, device_ids, optimizer, epoch, all_time_all_metrics, best_metric, scheduler)
+            save_last_weights(args, model, device_ids, optimizer, epoch, all_time_all_metrics, all_losses, best_metric, scheduler)
         if ddp:
             metrics_avg, all_metrics = valid_multi_gpu(model, args, config, args.device_ids, verbose=False)
             if rank == 0:
