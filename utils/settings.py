@@ -231,6 +231,7 @@ def parse_args_inference(dict_args: Union[Dict, None]) -> argparse.Namespace:
     #parser.add_argument("--demud_phaserot_voc", action='store_true', help="demud_phaserot_voc")
     parser.add_argument("--demud_phaseremix_inst", action='store_true', help="demud_phaseremix_inst")
     #parser.add_argument("--demud_phaseremix_voc", action='store_true', help="demud_phaseremix_voc")
+    parser.add_argument("--no_resample", action='store_true', help="no_resample")
     parser.add_argument("--use_prefix", action='store_true', help="use_prefix")
     parser.add_argument("--use_modelname", action='store_true', help="use_modelname")
     parser.add_argument("--use_modelconf", action='store_true', help="use_modelconf")
