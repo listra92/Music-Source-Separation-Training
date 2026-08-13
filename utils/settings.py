@@ -330,8 +330,13 @@ def get_model_from_config(model_type: str, config_path: str) -> Tuple[nn.Module,
         from models.torchseg_models import Torchseg_Net
         model = Torchseg_Net(config)
     elif model_type == 'mel_band_roformer':
-        from models.bs_roformer import MelBandRoformer
-        model = MelBandRoformer(**dict(config.model))
+        try:
+            from models.bs_roformer import MelBandRoformer
+            model = MelBandRoformer(**dict(config.model))
+        except Exception as e:
+            print("The model type might be BS Roformer instead of Mel Roformer, trying to fix it.")
+            from models.bs_roformer import BSRoformer
+            model = BSRoformer(**dict(config.model))
     elif model_type == 'mel_band_conformer':
         from models.bs_roformer import MelBandConformer
         model = MelBandConformer(**dict(config.model))
@@ -339,8 +344,13 @@ def get_model_from_config(model_type: str, config_path: str) -> Tuple[nn.Module,
         from models.bs_roformer.mel_band_roformer_experimental import MelBandRoformer
         model = MelBandRoformer(**dict(config.model))
     elif model_type == 'bs_roformer':
-        from models.bs_roformer import BSRoformer
-        model = BSRoformer(**dict(config.model))
+        try:
+            from models.bs_roformer import BSRoformer
+            model = BSRoformer(**dict(config.model))
+        except Exception as e:
+            print("The model type might be Mel Roformer instead of BS Roformer, trying to fix it.")
+            from models.bs_roformer import MelBandRoformer
+            model = MelBandRoformer(**dict(config.model))
     elif model_type == 'bs_conformer':
         from models.bs_roformer import BSConformer
         model = BSConformer(**dict(config.model))
