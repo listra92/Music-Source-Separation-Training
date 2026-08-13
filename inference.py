@@ -91,10 +91,7 @@ def run_folder(
             else:
                 target_sr = sample_rate
             mix, sr = librosa.load(path, sr=target_sr, mono=('model' in config and 'stereo' in config.model and not config.model['stereo']))
-            if args.no_resample:
-                print(f"The audio sample rate is {sr} but treated as {sample_rate} by the model.")
-            else:
-                print(f"The audio resampled to {sr}.")
+            print(f"Audio loaded with sample rate {sr} and treated as {sample_rate} by the model.")
         except Exception as e:
             print(f"Cannot read track: {format(path)}")
             print(f"Error message: {str(e)}")
@@ -169,8 +166,6 @@ def run_folder(
             if args.use_prefix:
                 file_name = f"{chr(148206)}{file_name}"
             
-            if args.no_resample:
-                print(f"The output audio written with sample rate {sr}.")
             peak: float = float(np.abs(estimates).max())
             if peak < 1.0 and args.flac_file:
                 output_file = os.path.join(args.store_dir, f"{file_name}_{ckpt_name}{instr}.flac")
