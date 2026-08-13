@@ -86,7 +86,11 @@ def run_folder(
         file_name: str = os.path.splitext(os.path.basename(path))[0]
 
         try:
-            mix, sr = librosa.load(path, sr=sample_rate, mono=('model' in config and 'stereo' in config.model and not config.model['stereo']))
+            if args.no_resample:
+                target_sr = None
+            else:
+                target_sr = sample_rate
+            mix, sr = librosa.load(path, sr=target_sr, mono=('model' in config and 'stereo' in config.model and not config.model['stereo']))
         except Exception as e:
             print(f"Cannot read track: {format(path)}")
             print(f"Error message: {str(e)}")
