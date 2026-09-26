@@ -239,7 +239,7 @@ def parse_args_inference(dict_args: Union[Dict, None]) -> argparse.Namespace:
     parser.add_argument("--use_modelname", action='store_true', help="use_modelname")
     parser.add_argument("--use_modelconf", action='store_true', help="use_modelconf")
     parser.add_argument("--num_overlap", default=8, type=int, help="num_overlap")
-    parser.add_argument("--chunk_size", default=485100, type=int, help="chunk_size")
+    parser.add_argument("--chunk_size", default=0, type=int, help="chunk_size")
 
     if dict_args is not None:
         args = parser.parse_args([])
