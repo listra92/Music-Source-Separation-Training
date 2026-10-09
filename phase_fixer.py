@@ -59,11 +59,8 @@ def transfer_magnitude_phase(source_file, target_file, transfer_magnitude=True, 
     # Determine output path with "(Corrected)" suffix
     target_name, target_ext = os.path.splitext(os.path.basename(target_file))
     
-    # Remove "_other" from the final output file name
-    target_name = target_name.replace("_other", "").replace("_vocals", "").replace("_instrumental", "").replace("_Other", "").replace("_Vocals", "").replace("_Instrumental", "").strip()
-    
     # Add "(Corrected)" suffix to the file name
-    output_file = output_file = os.path.join(output_folder, f"{target_name} (Fixed Instrumental){target_ext}") if output_folder else os.path.join(os.path.dirname(target_file), f"{target_name} (Corrected){target_ext}")
+    output_file = os.path.join(output_folder, f"{target_name}_phasefixer{target_ext}")
 
     # Load audio using torchaudio
     print(f"Phase Fixing {target_name}{target_ext}...")
