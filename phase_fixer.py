@@ -2,6 +2,8 @@ import argparse
 import torch
 import torchaudio
 import os
+import gc
+import glob
 
 def frequency_blend_phases(phase1, phase2, freq_bins, low_cutoff=500, high_cutoff=5000, base_factor=0.25, scale_factor=1.85):
     """
@@ -53,20 +55,25 @@ def frequency_blend_phases(phase1, phase2, freq_bins, low_cutoff=500, high_cutof
 
     return blended_phase
 
-def transfer_magnitude_phase(source_file, target_file, transfer_magnitude=True, transfer_phase=True, low_cutoff=500, high_cutoff=5000, scale_factor=1.85):
+def transfer_magnitude_phase(source_file, target_file, transfer_magnitude=True, transfer_phase=True, low_cutoff=500, high_cutoff=5000, scale_factor=1.85, output_32bit=False, output_folder=None):
     # Determine output path with "(Corrected)" suffix
-    target_dir = os.path.dirname(target_file)
     target_name, target_ext = os.path.splitext(os.path.basename(target_file))
-    output_file = os.path.join(target_dir, f"{target_name}_phasefixer{target_ext}")
+    
+    # Remove "_other" from the final output file name
+    target_name = target_name.replace("_other", "").replace("_vocals", "").replace("_instrumental", "").replace("_Other", "").replace("_Vocals", "").replace("_Instrumental", "").strip()
+    
+    # Add "(Corrected)" suffix to the file name
+    output_file = output_file = os.path.join(output_folder, f"{target_name} (Fixed Instrumental){target_ext}") if output_folder else os.path.join(os.path.dirname(target_file), f"{target_name} (Corrected){target_ext}")
 
-    # Load source and target audio in stereo
-    source_audio, source_sr = librosa.load(source_file, sr=None, mono=False)
-    target_audio, target_sr = librosa.load(target_file, sr=None, mono=False)
+    # Load audio using torchaudio
+    print(f"Phase Fixing {target_name}{target_ext}...")
+    source_waveform, source_sr = torchaudio.load(source_file)
+    target_waveform, target_sr = torchaudio.load(target_file)
 
     # Ensure sample rates match
     if source_sr != target_sr:
         raise ValueError("Sample rates of source and target audio files must match.")
-    
+
     # STFT settings
     n_fft = 2048
     hop_length = 512
@@ -107,20 +114,69 @@ def transfer_magnitude_phase(source_file, target_file, transfer_magnitude=True, 
     )
 
     # Save the modified audio to a file
-    dtype = torch.float32
-    torchaudio.save(output_file, modified_waveform, target_sr, encoding="PCM_S", bits_per_sample=32)
-    print(f"Modified audio saved as {output_file}")
+    dtype = torch.float32 if output_32bit else torch.int16
+    torchaudio.save(output_file, modified_waveform, target_sr, encoding="PCM_S", bits_per_sample=32 if output_32bit else 16)
+    print(f"Corrected file saved as {output_file}")
 
+def process_files(source_folder, target_folder, output_folder, low_cutoff, high_cutoff, scale_factor, output_32bit):
+    # Find all files in the unwa folder (with any suffix)
+    target_files = glob.glob(os.path.join(target_folder, "*"))
+
+    # Sort the files alphabetically (optional)
+    target_files.sort()
+
+    # Iterate over the files in the unwa folder
+    for target_file in target_files:
+        # Get the base file name (without the extension)
+        base_name_with_suffix = os.path.splitext(os.path.basename(target_file))[0]
+        
+        # Strip any trailing spaces or underscores
+        base_name = base_name_with_suffix.strip().replace("_other", "").replace("_vocals", "").replace("_instrumental", "").replace("_Other", "").replace("_Vocals", "").replace("_Instrumental", "")
+
+        # Handle the case where the suffix is part of the file name (like 'cedo 2_instrumental')
+        instrumental_file = os.path.join(source_folder, f"{base_name}_instrumental{os.path.splitext(target_file)[1]}")
+        instrumental_file = target_file
+
+        # Check if the corresponding instrumental file exists in the base folder
+        if os.path.exists(instrumental_file):
+            # Process the pair
+            transfer_magnitude_phase(
+                source_file=instrumental_file,
+                target_file=target_file,
+                transfer_magnitude=False,
+                transfer_phase=True,
+                low_cutoff=low_cutoff,
+                high_cutoff=high_cutoff,
+                scale_factor=scale_factor,
+                output_32bit=output_32bit,
+                output_folder=output_folder
+            )
+        else:
+            print(f"Warning: No matching instrumental file found for {target_file}, skipping.")
+        
+        gc.collect()
+        
 if __name__ == "__main__":
-    # Usage
     parser = argparse.ArgumentParser(description="Transfer magnitude and/or phase between audio files.")
-    parser.add_argument("--source_file", required=True, help="Path to the base folder containing instrumental files (kim).")
-    parser.add_argument("--target_file", required=True, help="Path to the folder containing corresponding unwa files.")
-    parser.add_argument("--transfer_magnitude", action='store_true', help="")
-    parser.add_argument("--transfer_phase", action='store_true', help="")
+    parser.add_argument("--source_folder", required=True, help="Path to the base folder containing instrumental files (kim).")
+    parser.add_argument("--target_folder", required=True, help="Path to the folder containing corresponding unwa files.")
+    parser.add_argument("--output_folder", required=True, help="Path to the output folder for corrected files.")
+    parser.add_argument("--transfer_magnitude", type=bool, default=False, help="")
+    parser.add_argument("--transfer_phase", type=bool, default=True, help="")
     parser.add_argument("--low_cutoff", type=int, default=500, help="Low cutoff frequency for phase blending.")
     parser.add_argument("--high_cutoff", type=int, default=5000, help="High cutoff frequency for phase blending.")
     parser.add_argument("--scale_factor", type=float, default=1.85, help="Scale factor for phase blending.")
+    parser.add_argument("--output_32bit", action="store_true", help="Save the output as a 32-bit file.")
+    
+    args = parser.parse_args()
 
-    # Adjust low and high cutoff frequencies if needed
-    transfer_magnitude_phase(args.source_file, args.target_file, transfer_magnitude=args.transfer_magnitude, transfer_phase=args.transfer_phase, low_cutoff=args.low_cutoff, high_cutoff=args.high_cutoff, scale_factor=args.scale_factor)
+    # Process all matching files in the base folder and the corresponding unwa folder
+    process_files(
+        source_folder=args.source_folder,
+        target_folder=args.target_folder,
+        output_folder=args.output_folder,
+        low_cutoff=args.low_cutoff,
+        high_cutoff=args.high_cutoff,
+        scale_factor=args.scale_factor,
+        output_32bit=args.output_32bit
+    )
