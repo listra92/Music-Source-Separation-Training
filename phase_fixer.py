@@ -55,7 +55,7 @@ def frequency_blend_phases(phase1, phase2, freq_bins, low_cutoff=500, high_cutof
 
     return blended_phase
 
-def transfer_magnitude_phase(source_file, target_file, transfer_magnitude=True, transfer_phase=True, low_cutoff=500, high_cutoff=5000, scale_factor=1.85, output_32bit=False, output_folder=None):
+def transfer_magnitude_phase(source_file, target_file, transfer_magnitude=True, transfer_phase=True, low_cutoff=500, high_cutoff=5000, scale_factor=1.85, output_32bit=True, output_folder=None):
     # Determine output path with "(Corrected)" suffix
     target_name, target_ext = os.path.splitext(os.path.basename(target_file))
     
